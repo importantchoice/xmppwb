@@ -37,7 +37,7 @@ setup(
     ],
     keywords=['jabber', 'xmpp', 'bridge', 'bot', 'webhook', 'webhooks'],
     packages=find_packages(),
-    install_requires=['aiohttp', 'pyyaml', 'slixmpp'],
+    install_requires=['aiohttp', 'pyyaml', 'slixmpp', 'prometheus_client'],
     entry_points={
         'console_scripts': [
             'xmppwb=xmppwb.core:main',

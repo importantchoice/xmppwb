@@ -8,6 +8,7 @@ This module implements the XMPP specific parts of the bridge.
 :license: MIT, see LICENSE for more details.
 """
 import logging
+
 from slixmpp import ClientXMPP
 
 
@@ -16,6 +17,7 @@ class XMPPBridgeBot(ClientXMPP):
     MUCs, listens to incoming messages (from both MUCs and normal chats) and
     sends messages.
     """
+
     def __init__(self, jid, password, main_bridge):
         ClientXMPP.__init__(self, jid, password)
 
@@ -39,7 +41,7 @@ class XMPPBridgeBot(ClientXMPP):
 
         for muc, nickname in self.main_bridge.mucs.items():
             logging.debug("Joining MUC '{}' using nickname '{}'.".format(
-                                                                muc, nickname))
+                muc, nickname))
             if muc in self.main_bridge.muc_passwords:
                 self.plugin['xep_0045'].join_muc(
                     muc,

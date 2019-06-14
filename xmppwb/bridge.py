@@ -11,9 +11,12 @@ import json
 import logging
 import os
 import ssl
+
 import aiohttp
 import aiohttp.web
+import prometheus_client as pc
 
+from xmppwb.prometheus import Metrics
 from xmppwb.xmpp import XMPPBridgeBot
 
 
@@ -23,6 +26,7 @@ class XMPPWebhookBridge:
     consists of an HTTP server listening for incoming webhooks (POST requests),
     and an HTTP client part for sending outgoing webhooks (POST requests).
     """
+
     def __init__(self, cfg, loop):
         self.loop = loop
         # List of bridges
@@ -31,6 +35,8 @@ class XMPPWebhookBridge:
         self.mucs = dict()
         # Mapping of MUC-JID -> Password
         self.muc_passwords = dict()
+        # Prometheus access token
+        self.prometheus_token = ""
 
         try:
             # Get the optional XMPP address (host, port) if specified
@@ -52,6 +58,10 @@ class XMPPWebhookBridge:
             if bridge.has_incoming_webhooks():
                 need_incoming_webhooks = True
 
+        # Get optional prometheus token from config file
+        if 'prometheus_token' in cfg:
+            self.prometheus_token = cfg['prometheus_token']
+
         # Initialize XMPP client
         self.xmpp_client = XMPPBridgeBot(cfg['xmpp']['jid'],
                                          cfg['xmpp']['password'],
@@ -69,6 +79,7 @@ class XMPPWebhookBridge:
             self.http_app.router.add_route('POST',
                                            '/',
                                            self.handle_incoming_webhook)
+            self.register_prometheus_endpoint()
             self.http_handler = self.http_app.make_handler()
             http_create_server = loop.create_server(
                 self.http_handler,
@@ -85,6 +96,12 @@ class XMPPWebhookBridge:
 
         if not self.http_server:
             logging.info("Not listening for incoming webhooks.")
+
+    def register_prometheus_endpoint(self):
+        self.http_app.router.add_route('GET',
+                                       '/metrics',
+                                       self.handle_prometheus_request)
+        logging.info("Serving prometheus metrics under /metrics")
 
     def process(self):
         self.loop.run_forever()
@@ -130,13 +147,13 @@ class XMPPWebhookBridge:
             }
             if 'attachment_link' in outgoing_webhook:
                 payload_attachment['title_link'] = \
-                                            outgoing_webhook['attachment_link']
+                    outgoing_webhook['attachment_link']
             payload = {
                 'attachments': [payload_attachment]
             }
 
         logging.debug("<-- Sending outgoing webhook. (from '{}')".format(
-                                                            from_jid))
+            from_jid))
         request = await outgoing_webhook['session'].post(
             outgoing_webhook['url'],
             data=json.dumps(payload),
@@ -149,14 +166,13 @@ class XMPPWebhookBridge:
         webhooks and relays the messages to XMPP."""
         if request.content_type == 'application/json':
             payload = await request.json()
-            # print(payload)
         else:
             # TODO: Handle other content types
             payload = await request.post()
 
         # Disgard empty messages
         if payload['text'] == "":
-            return aiohttp.web.Response()
+            return aiohttp.web.Response(status=412)
 
         token = payload['token']
         logging.debug("--> Handling incoming request from token "
@@ -167,7 +183,17 @@ class XMPPWebhookBridge:
         for bridge in self.bridges:
             bridge.handle_incoming_webhook(token, username, msg)
 
-        return aiohttp.web.Response()
+        Metrics.increment_messages_sent()
+        return aiohttp.web.Response(status=200)
+
+    async def handle_prometheus_request(self, request: aiohttp.web.Request):
+        params = request.rel_url.query
+        token = params.get("token", "")
+        if token != self.prometheus_token:
+            return aiohttp.web.Response(status=401)
+
+        Metrics.check_connection_active(self.xmpp_client)
+        return aiohttp.web.Response(status=200, body=pc.generate_latest(pc.REGISTRY), content_type="text/plain")
 
     def get_mucs(self, cfg):
         """Reads the MUC definitions from the config file."""

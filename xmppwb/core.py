@@ -12,10 +12,11 @@ import asyncio
 import logging
 import os
 import sys
+
 import yaml
 
-from xmppwb.bridge import XMPPWebhookBridge, InvalidConfigError
 from xmppwb import __version__
+from xmppwb.bridge import XMPPWebhookBridge, InvalidConfigError
 
 
 def main():
@@ -25,8 +26,8 @@ def main():
     """
     parser = argparse.ArgumentParser(
         description="A bot that bridges XMPP (chats and MUCs) with webhooks, "
-        "thus making it possible to interact with services outside the XMPP "
-        "world.")
+                    "thus making it possible to interact with services outside the XMPP "
+                    "world.")
     parser.add_argument("-c", "--config", help="set the config file",
                         required=True)
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
@@ -57,10 +58,8 @@ def main():
     if args.logfile:
         log_config['filename'] = args.logfile
 
-
     logging.getLogger('slixmpp').setLevel(logging.WARNING)
     logging.getLogger('aiohttp').setLevel(logging.WARNING)
-    # logger = logging.getLogger('xmppwb')
     logging.basicConfig(**log_config)
 
     logging.info("Starting xmppwb version {}".format(__version__))
