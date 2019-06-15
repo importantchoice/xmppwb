@@ -26,6 +26,7 @@ class XMPPBridgeBot(ClientXMPP):
         self.add_event_handler("session_start", self.session_started)
         self.add_event_handler("message", self.message_received)
         self.add_event_handler("connection_failed", self.connection_failed)
+        self.add_event_handler("disconnected", self.connection_failed)
         self.add_event_handler("failed_auth", self.auth_failed)
 
         self.register_plugin('xep_0030')  # Service Discovery
@@ -65,11 +66,16 @@ class XMPPBridgeBot(ClientXMPP):
         for bridge in self.main_bridge.bridges:
             await bridge.handle_incoming_xmpp(msg)
 
-    async def connection_failed(self, error):
+    def connection_failed(self, error):
         """This coroutine is triggered when the connection to the XMPP server
         failed.
         """
         logging.error("Connection to XMPP failed.")
+        self.connect(self.address)
+        if not self.is_connected():
+            logging.error("Reconnect failed.")
+        else:
+            logging.info("Connection to XMPP established again.")
 
     async def auth_failed(self, error):
         """This coroutine is triggered when the XMPP server has rejected the
